@@ -629,7 +629,6 @@ impl ImageManager {
         Ok(id)
     }
 
-    /// The part's cut and the original size of its file.
     fn decode_composed_g00_part(
         &mut self,
         part: &G00ComposePart,
@@ -668,12 +667,13 @@ impl ImageManager {
             - 1;
         let cut_no = part.cut_no.clamp(0, max_index as i32) as usize;
         let id = ImageHandle::new(album, cut_no);
+        let image = self
+            .get(&id)
+            .with_context(|| format!("missing cached composed g00 image id={}", id.index()))?;
         let original_size = self
             .original_size(&id)
-            .with_context(|| format!("missing cached composed g00 image id={}", id.index()))?;
-        self.get(&id)
-            .map(|img| ((*img).clone(), original_size))
-            .with_context(|| format!("missing cached composed g00 image id={}", id.index()))
+            .context("missing composed g00 source size")?;
+        Ok(((*image).clone(), original_size))
     }
 
     /// Load Siglus/Tona3's composed-G00 descriptor syntax:
@@ -703,15 +703,16 @@ impl ImageManager {
                 .checked_mul(first.y as usize)
                 .and_then(|len| len.checked_mul(4))
                 .context("blank composed g00 size overflow")?;
-            let blank = RgbaImage {
-                width: first.x as u32,
-                height: first.y as u32,
-                center_x: 0,
-                center_y: 0,
-                rgba: vec![0; pixel_len],
-            };
-            let size = (blank.width, blank.height);
-            (blank, size)
+            (
+                RgbaImage {
+                    width: first.x as u32,
+                    height: first.y as u32,
+                    center_x: 0,
+                    center_y: 0,
+                    rgba: vec![0; pixel_len],
+                },
+                (first.x as u32, first.y as u32),
+            )
         } else {
             self.decode_composed_g00_part(first)?
         };
@@ -732,9 +733,10 @@ impl ImageManager {
         }
 
         let id = self.insert_image(composed);
-        // Like a plain g00, the composed texture reports the size of the
-        // base file, not of its cut: bustshot scripts center on it.
-        id.album.frames.write().expect("image album lock poisoned")[0].original_size =
+        // Object size queries use the base cut's original canvas, not its
+        // trimmed pixel rectangle. Portrait scripts use this height to place
+        // the composite; changing it also changes their calculated position.
+        id.album.frames.write().expect("image album lock poisoned")[id.cut].original_size =
             original_size;
         self.composite_to_id.insert(cache_key, id.downgrade());
         Ok(id)

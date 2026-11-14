@@ -6,6 +6,29 @@
 
 This project is non-commercial and intended for research purposes.
 
+Architectural decisions are recorded in [docs/adr](docs/adr/README.md).
+Accepted decisions describe the intended design, not necessarily implemented features.
+
+Siglus applies an **unofficial Unicode cell-spacing extension** automatically.
+It requires no configuration file or activation step on any host.
+
+The extension uses Unicode widths rather than a language whitelist. It handles
+accented alphabetic text, font-measured Greek and Cyrillic, wide CJK, East Asian
+ambiguous punctuation such as Japanese ellipses and dashes, and canonical
+composition of decomposed characters in display runs. Newly handled alphabetic
+characters use their resolved font advances, including fallback fonts, so wide
+glyphs are not forced into overlapping half cells. Messages, names, ruby,
+text objects, choices, backlog, reconstructed choices, and editbox geometry
+share the policy. Editbox movement and deletion use grapheme boundaries.
+Script strings and native UTF-16/width commands retain their original semantics.
+Existing positioned save glyphs retain their coordinates.
+
+This is the cell-spacing stage of [ADR 0001](docs/adr/0001-unicode-text-layout.md),
+not complete Unicode typography. Contextual shaping, bidi, Unicode word/line
+breaking, complex mark attachment, joined emoji, cluster-aware font fallback,
+and lossless save reconstruction for future shaped layouts are still pending.
+Font availability still determines glyph coverage.
+
 <br clear="left"/>
 
 ## Example screenshots
@@ -163,6 +186,13 @@ non-Siglus games. See [crates/game_launcher](crates/game_launcher/README.md).
 
 ## Pre-built binaries
 * See preview releases on [GitHub Releases](https://github.com/xmoezzz/siglus_rs/releases)
+
+Android CI artifacts and release APKs use a persistent signing key. The build
+aligns the APK, signs it, and verifies its signature before uploading it.
+Repository secrets `ANDROID_KEY_BASE64` (base64-encoded keystore),
+`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, and `ANDROID_KEYSTORE_PASSWORD` are
+required. Missing signing configuration fails the Android job. Keep the same
+key for future releases so installed apps can be updated.
 
 ## Documentation Availability
 * API documentation is available at [docs](https://xmoezzz.github.io/siglus_rs/)
